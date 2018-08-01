@@ -1,0 +1,41 @@
+P3 TESTS
+
+
+
+////////////////////////
+COMMENTS
+
+#
+#asdf
+#exit
+# exit
+#ls
+# ls
+# &
+
+
+////////////////////////
+BUILDIN COMMANDS
+
+exit
+exit!
+exit &
+
+cd
+cd subdir
+cd /subdir
+cd /nfs/stak/students/b/wiensda/CS344/p3/subdir
+
+
+status
+status &
+status asdf
+
+
+////////////////////////
+
+
+
+
+
+////////////////////////

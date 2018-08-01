@@ -1,0 +1,104 @@
+
+
+While ! ExitCommandEntered
+
+
+	PrintPrompt (Colon line)
+	Call fflush()
+	
+	
+	GetUserInput
+
+	// Parse input into array of strings
+	wordify()
+
+
+	// Process input
+	
+	If FirstCharIsPound or NumWords == 0
+	
+		break
+		
+	Elsif FirstWordIsBIC
+	
+		Switch
+		
+			"exit":
+			
+				ExitCommandEntered := true;
+			
+			"status"
+				
+				if LastForegroundReturned
+					printLastFGProcExitVal
+				else
+					printLastFGProcTermSignal
+				endif
+				
+			"cd"
+				If numWords == 1
+					change wd to HOME ".."
+					change wd to specified 
+		
+		
+	else 
+		//Parse Background option
+		if LastCharAmpersand
+			if ForegroundOnlyMode
+				Parse(All Args except last, foreground)
+			else
+				Parse(All Args except last, foreground)
+			endif
+
+		else
+			Parse(All Args, forground)
+		endif
+
+	EndIf
+
+
+
+
+
+
+
+
+
+
+EndWhile
+
+
+
+
+killAllRunningProcesses()
+
+
+
+return(0);
+
+
+
+
+
+
+//////////////////////////////////////////////
+ParseCommandArgsIndirection(AllWords, foreOrBack) {
+
+	replacePidInArgs(AllWords);
+
+
+
+
+}
+
+
+
+//////////////////////////////////////////////
+replacePidInArgs(AllWords)
+{
+	for i = 1 to lastArgIndex(AllWords)
+		if (strcmp word == "$$")
+			//replace with Parent pid 
+		endif
+	endfor
+}
