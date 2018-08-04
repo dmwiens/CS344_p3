@@ -236,12 +236,35 @@ void ExecWords(struct Shell* sh)
             perror("Fork Error!\n"); exit(1); break;
             }
         case 0: {
-            printf("CHILD(%d): Sleeping for 1 second\n", getpid());
+            
+            char* args[512];
+            int i;
+
+            // Prepare arguments
+            for (i = 0; i < sh->entWordsCnt; i++)
+            {
+                // Assign the address of the words to the arguments
+                args[i] = &sh->entWords[i];
+            }
+            // Set char pointer after last word to NULL
+            args[sh->entWordsCnt] = NULL;
+
+
+            // Test: Print out arguments
+            for (i = 0; i <= sh->entWordsCnt; i++)
+            {
+                printf("Argument %d is \"%s\"\n",i , args[i]);
+            }
+            
+            // Execute!
+            execvp(args[0], args);
+
+            /*printf("CHILD(%d): Sleeping for 1 second\n", getpid());
             sleep(1);
             printf("CHILD(%d): Converting into \'ls -a\'\n", getpid());
             execlp("ls", "ls", "-a", NULL);
             perror("CHILD: exec failure!\n");
-
+            */
 
             exit(2); break;
             }
