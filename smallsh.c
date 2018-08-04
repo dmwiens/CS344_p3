@@ -102,7 +102,15 @@ void shellLoop(struct Shell* sh)
 
         } else {
 
-            printf("Process with exec()\n");
+            // look for background flag
+            if (strcmp(sh->entWords[sh->entWordsCnt - 1], "&") == 0)
+            {
+                printf("Process with exec() in background \n");
+            }
+            else {
+                printf("Process with exec() in foreground \n");
+            }
+
 
         } // end input processing
     }// endwhile
@@ -174,7 +182,7 @@ void GetEntryWords(struct Shell* sh)
 
     // Free entry buffer
     free(entryBuff);
-    
+
     return;
 }
 
