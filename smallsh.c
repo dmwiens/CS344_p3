@@ -300,11 +300,83 @@ void ExecWords(struct Shell* sh)
 
 
 
-
+/******************************************************************************
+Name: ChildExecution
+Desc: This program is only called by the child after fork. The word array
+at this point does not include a terminating ampersand.
+******************************************************************************/
 void ChildExecution(struct Shell* sh, int childExecInBackground)
 {
     char* args[513];    // 512 + 1 (for NULL)
     int i;
+    int inputSpecified = 0;
+    int outputSpecified = 0;
+    char inputArg[256];
+    char outputArg[256];
+    int inputFD, outputFD, result;
+
+
+    // Detect and set up indirection arguments
+
+    // Indirection symbols will only appear in second to last and fourth to last words
+    // Two times in a row, evaluate the second to last argument
+    for (i = 0; i < 2; i++) {
+        // Make sure there are enough words left for redirection to be possible
+        if (sh->entWordsCnt >= 3)
+        {
+            if (strcmp(sh->entWords[sh->entWordsCnt-2], "<") == 0) {// input specified
+                inputSpecified = 1;
+                strcpy(inputArg, sh->entWords[sh->entWordsCnt-1]);
+
+                // "Remove" the last two arguments
+                sh->entWordsCnt = sh->entWordsCnt - 2;
+            } else if (strcmp(sh->entWords[sh->entWordsCnt-2], ">") == 0) {// output specified
+                outputSpecified = 1;
+                strcpy(outputArg, sh->entWords[sh->entWordsCnt-1]);
+
+                // "Remove" the last two arguments
+                sh->entWordsCnt = sh->entWordsCnt - 2;           
+            }
+        }
+    }
+
+    // Test: redirection evaluation
+    printf("Input redirection: %d. The argument is \"%s\"\n", inputSpecified, inputArg);
+    printf("Output redirection: %d. The argument is \"%s\"\n", outputSpecified, outputArg);
+
+
+    // Set up Input redirection
+    if (inputSpecified) {
+        inputFD = open(inputArg, O_RDONLY);
+
+        if (inputFD != -1) {
+            // redirect input
+            result = dup2(inputFD, 0);
+            if (result == -1) {perror("dup2 failed on input redirection.\n"); exit(1);}
+
+        } else
+        {
+            perror("Input file open failed.\n");
+            exit(1);
+        }
+    }
+
+    // Set up Output redirection
+    if (outputSpecified) {
+        outputFD = open(outputArg, O_WRONLY | O_CREAT | O_TRUNC, 0644);
+
+        if (outputFD != -1) {
+            // redirect input
+            result = dup2(outputFD, 1);
+            if (result == -1) {perror("dup2 failed on output redirection.\n"); exit(1);}
+
+        } else
+        {
+            perror("Output file open failed.\n");
+            exit(1);
+        }
+    }
+
 
     // Prepare arguments
     for (i = 0; i < sh->entWordsCnt; i++)
@@ -327,17 +399,20 @@ void ChildExecution(struct Shell* sh, int childExecInBackground)
 
     // Should never get here, but just in case :)
     exit(2);
-
 }
 
 
-
+/******************************************************************************
+Name: ParentExecution
+Desc: This program is only called by the parent after fork. It either waits
+or doesn't wait, depending on the mode.
+******************************************************************************/
 void ParentExecution(struct Shell* sh, int childExecInBackground, pid_t childPid)
 {
     int childExitStatus = -5;
 
-    printf("PARENT(%d): Sleeping for 2 seconds\n", getpid());
-    sleep(2);
+    //printf("PARENT(%d): Sleeping for 1 second\n", getpid());
+    //sleep(1);
     printf("PARENT(%d): Wait()ing for child(%d) to terminate\n", getpid(), childPid);
     pid_t actualPid = waitpid(childPid, &childExitStatus, 0);
     printf("PARENT(%d): Child(%d) terminated.\n", getpid(), actualPid);
