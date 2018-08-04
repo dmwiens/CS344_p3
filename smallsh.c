@@ -17,6 +17,8 @@
 
 // Declare room information struct
 struct Shell  {
+    pid_t pid;
+    char pidString[256];
     char entWords[512][256];    // 512 "words", each of max length 256 char
     int entWordsCnt;            // actual number of entered words
     int modeForegroundOnly;
@@ -25,7 +27,7 @@ struct Shell  {
 
 
 // Function Prototypes
-void shellSetup();
+void shellSetup(struct Shell*);
 void shellLoop(struct Shell*);
 void shellTeardown();
 void GetEntryWords(struct Shell* sh);
@@ -41,7 +43,7 @@ int main()
 
 
     // Set up the shell
-    shellSetup();
+    shellSetup(&sh);
 
     // Loop for the Shell
     shellLoop(&sh);
@@ -57,8 +59,13 @@ int main()
 Name: shellSetup
 Desc: xxxdesc
 ******************************************************************************/
-void shellSetup()
+void shellSetup(struct Shell* sh)
 {
+    // Get current process id
+    sh->pid = getpid();
+    sprintf(sh->pidString, "%d", sh->pid);
+    printf("Process ID is: %s\n", sh->pidString);
+
     return;
 }
 
@@ -144,6 +151,7 @@ void GetEntryWords(struct Shell* sh)
     char* entryBuff;
     int entryBuffCharCnt = 0;
     size_t entryBuffSize = 0;
+    int i;
 
     // Print prompt (and flush output)
     printf("%s", ": ");
@@ -172,9 +180,17 @@ void GetEntryWords(struct Shell* sh)
         token = strtok(NULL, " \t");
     }
 
+
+    // Convert any $$ arguments to process ID
+    for (i = 0; i < sh->entWordsCnt; i++)
+    {
+        if (strcmp(sh->entWords[i], "$$") == 0) {
+            sprintf(sh->entWords[i], sh->pidString);
+        }
+    }
+
     // Test: print out entered words
     printf("User entered %d words, as follows: \n", sh->entWordsCnt);
-    int i;
     for (i = 0; i < sh->entWordsCnt; i++)
     {
         printf("Word_%d: %s\n", i, sh->entWords[i]);
