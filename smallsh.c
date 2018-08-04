@@ -22,6 +22,7 @@ struct Shell  {
     char entWords[512][256];    // 512 "words", each of max length 256 char
     int entWordsCnt;            // actual number of entered words
     int modeForegroundOnly;
+    char statusMessage[256];
 };
 
 
@@ -36,6 +37,8 @@ void ChangeDirectory(struct Shell* sh);
 void ExecWords(struct Shell* sh);
 void ChildExecution(struct Shell* sh, int childExecInBackground);
 void ParentExecution(struct Shell* sh, int childExecInBackground, pid_t childPid);
+void SetStatusMessage(struct Shell* sh, int exitStatus);
+
 
 int main()
 {
@@ -109,7 +112,8 @@ void shellLoop(struct Shell* sh)
 
             } else if (strcmp(sh->entWords[0], "status") == 0)
             {
-                printf("status entered\n");
+                // Print status
+                printf("%s\n", sh->statusMessage);
             } 
 
         } else {
@@ -341,8 +345,8 @@ void ChildExecution(struct Shell* sh, int childExecInBackground)
     }
 
     // Test: redirection evaluation
-    printf("Input redirection: %d. The argument is \"%s\"\n", inputSpecified, inputArg);
-    printf("Output redirection: %d. The argument is \"%s\"\n", outputSpecified, outputArg);
+    //printf("Input redirection: %d. The argument is \"%s\"\n", inputSpecified, inputArg);
+    //printf("Output redirection: %d. The argument is \"%s\"\n", outputSpecified, outputArg);
 
 
     // Set up Input redirection
@@ -388,7 +392,7 @@ void ChildExecution(struct Shell* sh, int childExecInBackground)
     args[sh->entWordsCnt] = NULL;
 
 
-    // Test: Print out arguments
+    // Test: Print out arguments (only works if no output redirection)
     //for (i = 0; i <= sh->entWordsCnt; i++)
     //{
     //    printf("Argument %d is \"%s\"\n",i , args[i]);
@@ -413,7 +417,30 @@ void ParentExecution(struct Shell* sh, int childExecInBackground, pid_t childPid
 
     //printf("PARENT(%d): Sleeping for 1 second\n", getpid());
     //sleep(1);
-    printf("PARENT(%d): Wait()ing for child(%d) to terminate\n", getpid(), childPid);
+    //printf("PARENT(%d): Wait()ing for child(%d) to terminate\n", getpid(), childPid);
     pid_t actualPid = waitpid(childPid, &childExitStatus, 0);
     printf("PARENT(%d): Child(%d) terminated.\n", getpid(), actualPid);
+    
+    SetStatusMessage(sh, childExitStatus);
+}
+
+
+/******************************************************************************
+Name: SetStatusMessage
+Desc: This program sets the status message string based on the passed in exitStatus
+integer
+******************************************************************************/
+void SetStatusMessage(struct Shell* sh, int exitStatus)
+{
+
+    // Check whether process exited with return value
+    if (WIFEXITED(exitStatus) != 0)
+    {
+        sprintf(sh->statusMessage, "exit value %d", WEXITSTATUS(exitStatus));
+    } 
+    else if (WIFSIGNALED(exitStatus) != 0)
+    {
+        sprintf(sh->statusMessage, "terminated by signal %d", WTERMSIG(exitStatus));
+    }
+
 }
