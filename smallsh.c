@@ -117,15 +117,6 @@ void shellLoop(struct Shell* sh)
 
 
             ExecWords(sh);
-            /*
-            // look for background flag
-            if (strcmp(sh->entWords[sh->entWordsCnt - 1], "&") == 0)
-            {
-                printf("Process with exec() in background \n");
-            }
-            else {
-                printf("Process with exec() in foreground \n");
-            }*/
 
 
         } // end input processing
@@ -259,6 +250,32 @@ void ExecWords(struct Shell* sh)
 
     pid_t spawnPid = -5;
     int childExecInBackground = 0;
+
+
+    // Look for Background flag ('&' at end of entered words)
+    if (strcmp(sh->entWords[sh->entWordsCnt - 1], "&") == 0)
+    {
+        // Ampersand present
+        // If mode allows, set flag to execute in background
+        if (!sh->modeForegroundOnly){
+            printf("Process with exec() in background \n");
+            childExecInBackground = 1;
+        } else {
+            printf("FG only mode. Process with exec() in foreground \n");
+            childExecInBackground = 0;
+        }
+
+        // Decrement number of words to effectively "remove" the '&' from the end
+        // This should occur regardless of mode.
+        sh->entWordsCnt--;
+    }
+    else {
+        printf("Process with exec() in foreground \n");
+        childExecInBackground = 0;
+    }
+
+
+
 
     // Fork off child
     spawnPid = fork();
