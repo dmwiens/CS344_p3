@@ -13,6 +13,7 @@
 #include <fcntl.h>
 #include <stdio.h>
 #include <stdlib.h>
+#include <signal.h>
 
 
 #define NUM_BG_PROC 100
@@ -48,6 +49,7 @@ void ChildExecution(struct Shell* sh, int childExecInBackground);
 void ParentExecution(struct Shell* sh, int childExecInBackground, pid_t childPid);
 void SetStatusMessage(char* status, int exitStatus);
 void CheckBGProc(struct Shell* sh);
+void catchSIGCHLD(int signo);
 
 int main()
 {
@@ -90,6 +92,25 @@ void shellSetup(struct Shell* sh)
         sh->bgproc[i].pid = 0;
     }
 
+
+
+    // Set up Parent signal handlers
+    // 1. Catch child terminations
+    // 2. Protect Shell from terminating via SIGINT signal
+    struct sigaction SIGCHLD_action = {0}, ignore_action = {0};
+
+    // Set up child termination struct
+    SIGCHLD_action.sa_handler = catchSIGCHLD;
+    sigfillset(&SIGCHLD_action.sa_mask);
+    SIGCHLD_action.sa_flags = 0;
+
+    // Set up SIGINT ignore struct
+    ignore_action.sa_handler = SIG_IGN;
+
+    sigaction(SIGCHLD, &SIGCHLD_action, NULL);
+    sigaction(SIGINT, &ignore_action, NULL);
+
+
     return;
 }
 
@@ -118,7 +139,9 @@ void shellLoop(struct Shell* sh)
         // Process Input
         if ((sh->entWordsCnt > 0 && sh->entWords[0][0] == '#') || sh->entWordsCnt == 0) 
         {
-            printf("Skip!\n");
+            ; // comment or blank entered. Do nothing (proceed through and restart loop)
+
+            //printf("Skip!\n");
 
         } else if (WordIsBuiltinCommand(sh->entWords[0]))
         {
@@ -340,6 +363,15 @@ void ChildExecution(struct Shell* sh, int childExecInBackground)
     int inputFD, outputFD, devNullFD, result;
 
 
+
+    // If foreground process, expose to SIGINT by setting default action
+    // (If background, child process will ignore (via inheritance from parent) SIGINT)
+    if (!childExecInBackground) {
+        struct sigaction default_action = {0};
+        default_action.sa_handler = SIG_DFL;
+        sigaction(SIGINT, &default_action, NULL);
+    }
+
     // Detect and set up indirection arguments
 
     // Indirection symbols will only appear in second to last and fourth to last words
@@ -529,11 +561,23 @@ void CheckBGProc(struct Shell* sh)
                 // Process completed! Set Status message and print
                 SetStatusMessage(bgStatusMessage, exitStatus);
                 printf("background pid %d is done: %s\n", sh->bgproc[i].pid, bgStatusMessage);
-                
+
                 // Set record to inactive
                 sh->bgproc[i].active = 0;
                 sh->bgproc[i].pid = 0;
             }
         }
     }
+}
+
+
+/******************************************************************************
+Name: catchSIGCHLD
+Desc: If a child process is terminated (by SIGINT), the SIGCHLD signal triggers
+        this to be called in the parent/shell process.
+******************************************************************************/
+void catchSIGCHLD(int signo)
+{
+    char* message = "terminated by signal 2\n";
+    write(STDOUT_FILENO, message, 23);
 }
