@@ -17,9 +17,6 @@
 
 // Declare room information struct
 struct Shell  {
-    char* entryBuff;
-    int entryBuffCharCnt;
-    size_t entryBuffSize;
     char entWords[512][256];    // 512 "words", each of max length 256 char
     int entWordsCnt;            // actual number of entered words
     int modeForegroundOnly;
@@ -32,14 +29,13 @@ void shellSetup();
 void shellLoop(struct Shell*);
 void shellTeardown();
 void GetEntryWords(struct Shell* sh);
-
+int WordIsBuiltinCommand(char* word);
 
 int main()
 {
 
     // Define and initialize shell data
     struct Shell sh;
-    sh.entryBuffCharCnt = 0;
     sh.entWordsCnt = 0;
     sh.modeForegroundOnly = 0;
 
@@ -63,7 +59,6 @@ Desc: xxxdesc
 ******************************************************************************/
 void shellSetup()
 {
-
     return;
 }
 
@@ -78,51 +73,39 @@ void shellLoop(struct Shell* sh)
 {
     int exitCommandIssued = 0;
 
-        // Print prompt (and flush output)
-        printf("%s", ": ");
-        fflush(stdout);
 
-        // get user input
-        sh->entryBuffCharCnt = getline(&sh->entryBuff, &sh->entryBuffSize, stdin);
-        printf("Allocated %zu bytes for the %d chars you entered.\n", sh->entryBuffSize, sh->entryBuffCharCnt);
-        printf("Here is the raw entered line: \"%s\"\n", sh->entryBuff);
-        
-        // remove trailing newline
-        sh->entryBuff[sh->entryBuffCharCnt-1] = '\0';
-        sh->entryBuffCharCnt--;
+    while (!exitCommandIssued)
+    {
+        GetEntryWords(sh);
 
-        printf("Here is the cleaned entered line: \"%s\"\n", sh->entryBuff);
 
-        // Parse the entered characters into an array of words
-        char* token = strtok(sh->entryBuff, " ");
-        sh->entWordsCnt = 0;
-
-        while (token != NULL)
+        // Process Input
+        if ((sh->entWordsCnt > 0 && sh->entWords[0][0] == '#') || sh->entWordsCnt == 0) 
         {
-            strcpy(sh->entWords[sh->entWordsCnt], token);
-            sh->entWordsCnt++;
-            token = strtok(NULL, " ");
-        }
+            printf("Skip!\n");
 
-
-
-
-        // Test: print out entered words
-        printf("User entered %d words, as follows: \n", sh->entWordsCnt);
-        int i;
-        for (i = 0; i < sh->entWordsCnt; i++)
+        } else if (WordIsBuiltinCommand(sh->entWords[0]))
         {
-            printf("Word_%d: %s\n", i, sh->entWords[i]);
-        }
+            if (strcmp(sh->entWords[0], "exit") == 0)
+            {
+                printf("exit entered\n");
+                exitCommandIssued = 1;
 
+            } else if (strcmp(sh->entWords[0], "cd") == 0)
+            {
+                printf("cd entered\n");
 
+            } else if (strcmp(sh->entWords[0], "status") == 0)
+            {
+                printf("status entered\n");
+            } 
 
+        } else {
 
-        free(sh->entryBuff);
-    //while (!exitCommandIssued)
-    //{}
-    
+            printf("Process with exec()\n");
 
+        } // end input processing
+    }// endwhile
 
     return;
 }
@@ -150,7 +133,58 @@ Desc: This program prompts the user for input, collects and parses the entered
 ******************************************************************************/
 void GetEntryWords(struct Shell* sh)
 {
-    ;
+    char* entryBuff;
+    int entryBuffCharCnt = 0;
+    size_t entryBuffSize = 0;
 
+    // Print prompt (and flush output)
+    printf("%s", ": ");
+    fflush(stdout);
+
+
+    // get user input
+    entryBuffCharCnt = getline(&entryBuff, &entryBuffSize, stdin);
+    printf("Allocated %zu bytes for the %d chars you entered.\n", entryBuffSize, entryBuffCharCnt);
+    printf("Here is the raw entered line: \"%s\"\n", entryBuff);
+    
+    // remove trailing newline
+    entryBuff[entryBuffCharCnt-1] = '\0';
+    entryBuffCharCnt--;
+
+    printf("Here is the cleaned entered line: \"%s\"\n", entryBuff);
+
+    // Parse the entered characters into an array of words
+    char* token = strtok(entryBuff, " \t");
+    sh->entWordsCnt = 0;
+
+    while (token != NULL)
+    {
+        strcpy(sh->entWords[sh->entWordsCnt], token);
+        sh->entWordsCnt++;
+        token = strtok(NULL, " \t");
+    }
+
+    // Test: print out entered words
+    printf("User entered %d words, as follows: \n", sh->entWordsCnt);
+    int i;
+    for (i = 0; i < sh->entWordsCnt; i++)
+    {
+        printf("Word_%d: %s\n", i, sh->entWords[i]);
+    }
+
+    // Free entry buffer
+    free(entryBuff);
+    
     return;
+}
+
+
+
+/******************************************************************************
+Name: WordIsBuiltinCommand
+Desc: This program prompts receives a word and returns th
+******************************************************************************/
+int WordIsBuiltinCommand(char* word)
+{
+    return (strcmp(word, "exit") == 0) || (strcmp(word, "cd") == 0) || (strcmp(word, "status") == 0);
 }
