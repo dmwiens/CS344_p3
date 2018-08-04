@@ -32,6 +32,7 @@ void shellLoop(struct Shell*);
 void shellTeardown();
 void GetEntryWords(struct Shell* sh);
 int WordIsBuiltinCommand(char* word);
+void ChangeDirectory(struct Shell* sh);
 void ExecWords(struct Shell* sh);
 
 int main()
@@ -102,6 +103,7 @@ void shellLoop(struct Shell* sh)
             } else if (strcmp(sh->entWords[0], "cd") == 0)
             {
                 printf("cd entered\n");
+                ChangeDirectory(sh);
 
             } else if (strcmp(sh->entWords[0], "status") == 0)
             {
@@ -218,6 +220,32 @@ int WordIsBuiltinCommand(char* word)
 }
 
 
+
+/******************************************************************************
+Name: ChangeDirectory
+Desc: This program changes the directory. word 0 is "cd" (already confirmed).
+        word 1 (optional) is the file to move to.
+******************************************************************************/
+void ChangeDirectory(struct Shell* sh)
+{
+
+    if (sh->entWordsCnt == 1)   // only "cd" was entered
+    {
+        // Change cwd to HOME directory
+        if (chdir(getenv("HOME")) != 0)
+            perror("Failure to change working directory to HOME\n");
+
+    } else // additional argument(s) were added 
+    {
+        // Change directory, passing in argument
+        // NOTE: chdir handles interpretting the argument as relative or absolute
+        if (chdir(sh->entWords[1]) != 0)
+            perror("Failure to change working directory to entered directory.\n");
+    }
+
+}
+
+
 /******************************************************************************
 Name: ExecWords
 Desc: This program executes the shells word arguments
@@ -237,7 +265,7 @@ void ExecWords(struct Shell* sh)
             }
         case 0: {
             
-            char* args[512];
+            char* args[513];    // 512 + 1 (for NULL)
             int i;
 
             // Prepare arguments
@@ -259,13 +287,7 @@ void ExecWords(struct Shell* sh)
             // Execute!
             execvp(args[0], args);
 
-            /*printf("CHILD(%d): Sleeping for 1 second\n", getpid());
-            sleep(1);
-            printf("CHILD(%d): Converting into \'ls -a\'\n", getpid());
-            execlp("ls", "ls", "-a", NULL);
-            perror("CHILD: exec failure!\n");
-            */
-
+            // Should never get here, but just in case :)
             exit(2); break;
             }
         default: {
