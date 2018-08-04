@@ -15,6 +15,14 @@
 #include <stdlib.h>
 
 
+#define NUM_BG_PROC 100
+
+// Declare background process record
+struct BGProcRecord {
+    int active;
+    pid_t pid;
+};
+
 // Declare room information struct
 struct Shell  {
     pid_t pid;
@@ -23,6 +31,7 @@ struct Shell  {
     int entWordsCnt;            // actual number of entered words
     int modeForegroundOnly;
     char statusMessage[256];
+    struct BGProcRecord bgproc[NUM_BG_PROC];   // array for holding background process information 
 };
 
 
@@ -37,8 +46,8 @@ void ChangeDirectory(struct Shell* sh);
 void ExecWords(struct Shell* sh);
 void ChildExecution(struct Shell* sh, int childExecInBackground);
 void ParentExecution(struct Shell* sh, int childExecInBackground, pid_t childPid);
-void SetStatusMessage(struct Shell* sh, int exitStatus);
-
+void SetStatusMessage(char* status, int exitStatus);
+void CheckBGProc(struct Shell* sh);
 
 int main()
 {
@@ -68,9 +77,18 @@ Desc: xxxdesc
 ******************************************************************************/
 void shellSetup(struct Shell* sh)
 {
+    int i;
+
     // Get current process id
     sh->pid = getpid();
     sprintf(sh->pidString, "%d", sh->pid);
+
+
+    // Initialize background process records
+    for (i = 0; i < NUM_BG_PROC; i++) {
+        sh->bgproc[i].active = 0;
+        sh->bgproc[i].pid = 0;
+    }
 
     return;
 }
@@ -89,6 +107,10 @@ void shellLoop(struct Shell* sh)
 
     while (!exitCommandIssued)
     {
+        // Check the Status of all background processes
+        CheckBGProc(sh);
+
+
         // Get the users entry (and process into array of whitespace-delimited words)
         GetEntryWords(sh);
 
@@ -117,8 +139,6 @@ void shellLoop(struct Shell* sh)
             } 
 
         } else {
-
-
 
             ExecWords(sh);
 
@@ -317,7 +337,7 @@ void ChildExecution(struct Shell* sh, int childExecInBackground)
     int outputSpecified = 0;
     char inputArg[256];
     char outputArg[256];
-    int inputFD, outputFD, result;
+    int inputFD, outputFD, devNullFD, result;
 
 
     // Detect and set up indirection arguments
@@ -363,6 +383,12 @@ void ChildExecution(struct Shell* sh, int childExecInBackground)
             perror("Input file open failed.\n");
             exit(1);
         }
+    } else {
+        // If child should execute in background and input is not specified, take from /dev/null
+        if (childExecInBackground) {
+            inputFD = open("/dev/null", O_RDONLY);
+            dup2(inputFD, 0);
+        }
     }
 
     // Set up Output redirection
@@ -379,8 +405,13 @@ void ChildExecution(struct Shell* sh, int childExecInBackground)
             perror("Output file open failed.\n");
             exit(1);
         }
+    } else {
+        // If child should execute in background and output is not specified, send to /dev/null
+        if (childExecInBackground) {
+            outputFD = open("/dev/null", O_WRONLY);
+            dup2(outputFD, 1);
+        }
     }
-
 
     // Prepare arguments
     for (i = 0; i < sh->entWordsCnt; i++)
@@ -414,14 +445,42 @@ or doesn't wait, depending on the mode.
 void ParentExecution(struct Shell* sh, int childExecInBackground, pid_t childPid)
 {
     int childExitStatus = -5;
+    int i;
 
     //printf("PARENT(%d): Sleeping for 1 second\n", getpid());
     //sleep(1);
     //printf("PARENT(%d): Wait()ing for child(%d) to terminate\n", getpid(), childPid);
-    pid_t actualPid = waitpid(childPid, &childExitStatus, 0);
-    printf("PARENT(%d): Child(%d) terminated.\n", getpid(), actualPid);
-    
-    SetStatusMessage(sh, childExitStatus);
+
+    if (childExecInBackground) {
+
+        // Print background process id;
+        printf("background pid is %d\n", childPid);
+
+        // Record background
+        // Find next record with "inactive" status
+        for (i = 0; i < NUM_BG_PROC; i++) {
+            if (!sh->bgproc[i].active){
+                // Set active and record info
+                sh->bgproc[i].active = 1;
+                sh->bgproc[i].pid = childPid;
+                
+                // Return once recorded
+                return;
+            }
+        }
+
+    } else {
+        // Wait for termination
+        pid_t actualPid = waitpid(childPid, &childExitStatus, 0);
+        
+        //printf("PARENT(%d): Child(%d) terminated.\n", getpid(), actualPid);
+
+        // Set the status message
+        SetStatusMessage(sh->statusMessage, childExitStatus);
+
+        return;
+    }
+
 }
 
 
@@ -430,17 +489,51 @@ Name: SetStatusMessage
 Desc: This program sets the status message string based on the passed in exitStatus
 integer
 ******************************************************************************/
-void SetStatusMessage(struct Shell* sh, int exitStatus)
+void SetStatusMessage(char* status, int exitStatus)
 {
 
     // Check whether process exited with return value
     if (WIFEXITED(exitStatus) != 0)
     {
-        sprintf(sh->statusMessage, "exit value %d", WEXITSTATUS(exitStatus));
+        sprintf(status, "exit value %d", WEXITSTATUS(exitStatus));
     } 
     else if (WIFSIGNALED(exitStatus) != 0)
     {
-        sprintf(sh->statusMessage, "terminated by signal %d", WTERMSIG(exitStatus));
+        sprintf(status, "terminated by signal %d", WTERMSIG(exitStatus));
     }
 
+}
+
+
+/******************************************************************************
+Name: CheckBGProc
+Desc: This program checks the status of background programs and prints their
+results if necessary.
+******************************************************************************/
+void CheckBGProc(struct Shell* sh)
+{
+    pid_t bgProcPid;
+    int exitStatus;
+    char bgStatusMessage[256];
+    int i;
+
+    // Find next record with "active" status
+    for (i = 0; i < NUM_BG_PROC; i++) {
+        if (sh->bgproc[i].active){
+            // background process is active
+
+            // Check on completion
+            bgProcPid = waitpid(sh->bgproc[i].pid, &exitStatus, WNOHANG);
+            if (bgProcPid != 0) 
+            {
+                // Process completed! Set Status message and print
+                SetStatusMessage(bgStatusMessage, exitStatus);
+                printf("background pid %d is done: %s\n", sh->bgproc[i].pid, bgStatusMessage);
+                
+                // Set record to inactive
+                sh->bgproc[i].active = 0;
+                sh->bgproc[i].pid = 0;
+            }
+        }
+    }
 }

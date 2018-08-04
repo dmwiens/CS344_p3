@@ -1,6 +1,18 @@
 
+// Set up SIGTSTP to invert foreground only mode
+
+// Set up smallsh to ignore SIGINT signals (it should only kill foreground child processes)
+
 
 While ! ExitCommandEntered
+
+
+
+
+	// Evaluate if any background tasks have completed
+	// If so print summary of each
+
+
 
 
 	PrintPrompt (Colon line)
@@ -41,7 +53,10 @@ While ! ExitCommandEntered
 					change wd to specified 
 		
 		
-	else 
+	else // Attempt to execute command with possible args and indirection
+
+
+
 		//Parse Background option
 		if LastCharAmpersand
 			if ForegroundOnlyMode
@@ -62,8 +77,14 @@ While ! ExitCommandEntered
 
 
 
-
-
+	// If necessary, print forground only mode status
+	if ForegroundOnlyModeChanged
+		if ForegroundOnlyMode
+			print "Entering foreground-only mode (& is now ignored)"
+		else
+			print "Exiting foreground-only mode"
+		endif
+	endif
 
 EndWhile
 
@@ -102,3 +123,33 @@ replacePidInArgs(AllWords)
 		endif
 	endfor
 }
+
+
+
+
+//////////////////////////////////////////////
+changeForegroundOnlyMode()
+{
+	
+	ForegroundOnlyMode = !ForegroundOnlyMode;
+	ForegroundOnlyModeChanged = true;
+	
+	return;
+}
+
+
+
+
+
+
+Background vs Foreground
+
+Parents:
+FG: Fork. Wait patiently for child to exit OR Terminate
+BG: Fork. Record Child PID in array. Move on immediately.
+
+Children
+FG: Forked. Protect against killing effect of SIGTSTP signals.
+BG: Forked. Protect against killing effects of SIGINT and SIGTSTP signals.
+
+
