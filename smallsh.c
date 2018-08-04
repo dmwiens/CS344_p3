@@ -32,6 +32,7 @@ void shellLoop(struct Shell*);
 void shellTeardown();
 void GetEntryWords(struct Shell* sh);
 int WordIsBuiltinCommand(char* word);
+void ExecWords(struct Shell* sh);
 
 int main()
 {
@@ -64,7 +65,6 @@ void shellSetup(struct Shell* sh)
     // Get current process id
     sh->pid = getpid();
     sprintf(sh->pidString, "%d", sh->pid);
-    printf("Process ID is: %s\n", sh->pidString);
 
     return;
 }
@@ -83,6 +83,7 @@ void shellLoop(struct Shell* sh)
 
     while (!exitCommandIssued)
     {
+        // Get the users entry (and process into array of whitespace-delimited words)
         GetEntryWords(sh);
 
 
@@ -109,6 +110,10 @@ void shellLoop(struct Shell* sh)
 
         } else {
 
+
+
+            ExecWords(sh);
+            /*
             // look for background flag
             if (strcmp(sh->entWords[sh->entWordsCnt - 1], "&") == 0)
             {
@@ -116,7 +121,7 @@ void shellLoop(struct Shell* sh)
             }
             else {
                 printf("Process with exec() in foreground \n");
-            }
+            }*/
 
 
         } // end input processing
@@ -139,8 +144,6 @@ void shellTeardown()
 }
 
 
-
-
 /******************************************************************************
 Name: GetEntryWords
 Desc: This program prompts the user for input, collects and parses the entered
@@ -158,16 +161,16 @@ void GetEntryWords(struct Shell* sh)
     fflush(stdout);
 
 
-    // get user input
+    // Get user input line
     entryBuffCharCnt = getline(&entryBuff, &entryBuffSize, stdin);
-    printf("Allocated %zu bytes for the %d chars you entered.\n", entryBuffSize, entryBuffCharCnt);
-    printf("Here is the raw entered line: \"%s\"\n", entryBuff);
+    //printf("Allocated %zu bytes for the %d chars you entered.\n", entryBuffSize, entryBuffCharCnt);
+    //printf("Here is the raw entered line: \"%s\"\n", entryBuff);
     
-    // remove trailing newline
+    // Remove trailing newline
     entryBuff[entryBuffCharCnt-1] = '\0';
     entryBuffCharCnt--;
 
-    printf("Here is the cleaned entered line: \"%s\"\n", entryBuff);
+    //printf("Here is the cleaned entered line: \"%s\"\n", entryBuff);
 
     // Parse the entered characters into an array of words
     char* token = strtok(entryBuff, " \t");
@@ -181,20 +184,21 @@ void GetEntryWords(struct Shell* sh)
     }
 
 
-    // Convert any $$ arguments to process ID
+    // Convert any $$ words to process ID
     for (i = 0; i < sh->entWordsCnt; i++)
     {
+        // If any word is "$$", replace it with the (stringified) process ID
         if (strcmp(sh->entWords[i], "$$") == 0) {
             sprintf(sh->entWords[i], sh->pidString);
         }
     }
 
     // Test: print out entered words
-    printf("User entered %d words, as follows: \n", sh->entWordsCnt);
-    for (i = 0; i < sh->entWordsCnt; i++)
-    {
-        printf("Word_%d: %s\n", i, sh->entWords[i]);
-    }
+    // printf("User entered %d words, as follows: \n", sh->entWordsCnt);
+    //for (i = 0; i < sh->entWordsCnt; i++)
+    // {
+    //    printf("Word_%d: %s\n", i, sh->entWords[i]);
+    //}
 
     // Free entry buffer
     free(entryBuff);
@@ -211,4 +215,44 @@ Desc: This program prompts receives a word and returns th
 int WordIsBuiltinCommand(char* word)
 {
     return (strcmp(word, "exit") == 0) || (strcmp(word, "cd") == 0) || (strcmp(word, "status") == 0);
+}
+
+
+/******************************************************************************
+Name: ExecWords
+Desc: This program executes the shells word arguments
+******************************************************************************/
+void ExecWords(struct Shell* sh)
+{
+
+    pid_t spawnPid = -5;
+    int childExitStatus = -5;   
+
+    // Fork off child
+    spawnPid = fork();
+
+    switch (spawnPid) {
+        case -1: { 
+            perror("Fork Error!\n"); exit(1); break;
+            }
+        case 0: {
+            printf("CHILD(%d): Sleeping for 1 second\n", getpid());
+            sleep(1);
+            printf("CHILD(%d): Converting into \'ls -a\'\n", getpid());
+            execlp("ls", "ls", "-a", NULL);
+            perror("CHILD: exec failure!\n");
+
+
+            exit(2); break;
+            }
+        default: {
+            printf("PARENT(%d): Sleeping for 2 seconds\n", getpid());
+            sleep(2);
+            printf("PARENT(%d): Wait()ing for child(%d) to terminate\n", getpid(), spawnPid);
+            pid_t actualPid = waitpid(spawnPid, &childExitStatus, 0);
+            printf("PARENT(%d): Child(%d) terminated.\n", getpid(), actualPid);
+            break;
+            }
+    } // end switch
+
 }
