@@ -186,21 +186,23 @@ void GetEntryWords(struct Shell* sh)
     }
 
 
-    // Convert any $$ words to process ID
+    // Convert any "$$" words to process ID
     for (i = 0; i < sh->entWordsCnt; i++)
     {
-        // If any word is "$$", replace it with the (stringified) process ID
-        if (strcmp(sh->entWords[i], "$$") == 0) {
-            sprintf(sh->entWords[i], sh->pidString);
+        // If any word ends with "$$", replace it with the (stringified) process ID
+        char* dsdsLocation = strstr(sh->entWords[i], "$$");
+        if (dsdsLocation != NULL)
+        {
+            sprintf(dsdsLocation, sh->pidString);
         }
     }
 
     // Test: print out entered words
-    // printf("User entered %d words, as follows: \n", sh->entWordsCnt);
+    //printf("User entered %d words, as follows: \n", sh->entWordsCnt);
     //for (i = 0; i < sh->entWordsCnt; i++)
     // {
     //    printf("Word_%d: %s\n", i, sh->entWords[i]);
-    //}
+    // }
 
     // Free entry buffer
     free(entryBuff);
