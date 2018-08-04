@@ -34,6 +34,8 @@ void GetEntryWords(struct Shell* sh);
 int WordIsBuiltinCommand(char* word);
 void ChangeDirectory(struct Shell* sh);
 void ExecWords(struct Shell* sh);
+void ChildExecution(struct Shell* sh, int childExecInBackground);
+void ParentExecution(struct Shell* sh, int childExecInBackground, pid_t childPid);
 
 int main()
 {
@@ -256,7 +258,7 @@ void ExecWords(struct Shell* sh)
 {
 
     pid_t spawnPid = -5;
-    int childExitStatus = -5;   
+    int childExecInBackground = 0;
 
     // Fork off child
     spawnPid = fork();
@@ -267,39 +269,59 @@ void ExecWords(struct Shell* sh)
             }
         case 0: {
             
-            char* args[513];    // 512 + 1 (for NULL)
-            int i;
-
-            // Prepare arguments
-            for (i = 0; i < sh->entWordsCnt; i++)
-            {
-                // Assign the address of the words to the arguments
-                args[i] = &sh->entWords[i];
-            }
-            // Set char pointer after last word to NULL
-            args[sh->entWordsCnt] = NULL;
-
-
-            // Test: Print out arguments
-            for (i = 0; i <= sh->entWordsCnt; i++)
-            {
-                printf("Argument %d is \"%s\"\n",i , args[i]);
-            }
-            
-            // Execute!
-            execvp(args[0], args);
-
-            // Should never get here, but just in case :)
-            exit(2); break;
+            ChildExecution(sh, childExecInBackground);
+            break;
             }
         default: {
-            printf("PARENT(%d): Sleeping for 2 seconds\n", getpid());
-            sleep(2);
-            printf("PARENT(%d): Wait()ing for child(%d) to terminate\n", getpid(), spawnPid);
-            pid_t actualPid = waitpid(spawnPid, &childExitStatus, 0);
-            printf("PARENT(%d): Child(%d) terminated.\n", getpid(), actualPid);
+
+            ParentExecution(sh, childExecInBackground, spawnPid);
             break;
             }
     } // end switch
 
+}
+
+
+
+
+void ChildExecution(struct Shell* sh, int childExecInBackground)
+{
+    char* args[513];    // 512 + 1 (for NULL)
+    int i;
+
+    // Prepare arguments
+    for (i = 0; i < sh->entWordsCnt; i++)
+    {
+        // Assign the address of the words to the arguments
+        args[i] = &sh->entWords[i];
+    }
+    // Set char pointer after last word to NULL
+    args[sh->entWordsCnt] = NULL;
+
+
+    // Test: Print out arguments
+    //for (i = 0; i <= sh->entWordsCnt; i++)
+    //{
+    //    printf("Argument %d is \"%s\"\n",i , args[i]);
+    //}
+    
+    // Execute!
+    execvp(args[0], args);
+
+    // Should never get here, but just in case :)
+    exit(2);
+
+}
+
+
+
+void ParentExecution(struct Shell* sh, int childExecInBackground, pid_t childPid)
+{
+    int childExitStatus = -5;
+
+    printf("PARENT(%d): Sleeping for 2 seconds\n", getpid());
+    sleep(2);
+    printf("PARENT(%d): Wait()ing for child(%d) to terminate\n", getpid(), childPid);
+    pid_t actualPid = waitpid(childPid, &childExitStatus, 0);
+    printf("PARENT(%d): Child(%d) terminated.\n", getpid(), actualPid);
 }
