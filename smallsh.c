@@ -31,7 +31,6 @@ struct Shell  {
     char pidString[256];
     char entWords[512][256];    // 512 "words", each of max length 256 char
     int entWordsCnt;            // actual number of entered words
-    //int modeForegroundOnly;
     char statusMessage[256];
     struct BGProcRecord bgproc[NUM_BG_PROC];   // array for holding background process information 
 };
@@ -64,7 +63,6 @@ int main()
     // Define and initialize shell data
     struct Shell sh;
     sh.entWordsCnt = 0;
-    //sh.modeForegroundOnly = 0;
 
 
     // Set up the shell
