@@ -567,6 +567,12 @@ void ParentExecution(struct Shell* sh, int childExecInBackground, pid_t childPid
         // Set the status message
         SetStatusMessage(sh->statusMessage, childExitStatus);
 
+        // Immediately print status if terminated
+        if (WIFSIGNALED(childExitStatus) != 0)
+        {
+            printf("%s\n", sh->statusMessage);
+        }
+
         return;
     }
 
@@ -635,8 +641,9 @@ Desc: If a child process is terminated (by SIGINT), the SIGCHLD signal triggers
 ******************************************************************************/
 void catchSIGCHLD(int signo)
 {
-    char* message = "terminated by signal 2\n";
-    write(STDOUT_FILENO, message, 23);
+    ; // do nothing
+    //char* message = "terminated by signal 2\n";
+    //write(STDOUT_FILENO, message, 23);
 }
 
 
