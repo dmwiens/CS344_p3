@@ -14,6 +14,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <signal.h>
+#include <errno.h>
 
 
 #define NUM_BG_PROC 100
@@ -56,7 +57,7 @@ void catchSIGTSTP(int signo);
 
 // Global variables
 int modeForegroundOnly = 0;     // added here to allow access in SIGTSTP handler
-
+int getlineErrCnt = 0;
 
 int main()
 {
@@ -100,7 +101,6 @@ void shellSetup(struct Shell* sh)
     }
 
 
-
     // Set up Parent signal handlers
     // 1. Catch child terminations
     // 2. Protect Shell from terminating via SIGINT signal
@@ -109,12 +109,12 @@ void shellSetup(struct Shell* sh)
     // Set up child termination struct
     SIGCHLD_action.sa_handler = catchSIGCHLD;
     sigfillset(&SIGCHLD_action.sa_mask);
-    SIGCHLD_action.sa_flags = 0;
+    SIGCHLD_action.sa_flags = SA_RESTART;
 
     // Set up mode-switch signal struct
     SIGTSTP_action.sa_handler = catchSIGTSTP;
     sigfillset(&SIGTSTP_action.sa_mask);
-    SIGTSTP_action.sa_flags = 0;
+    SIGTSTP_action.sa_flags = SA_RESTART;
 
     // Set up SIGINT ignore struct
     ignore_action.sa_handler = SIG_IGN;
@@ -212,64 +212,77 @@ Desc: This program prompts the user for input, collects and parses the entered
 ******************************************************************************/
 void GetEntryWords(struct Shell* sh)
 {
-    char* entryBuff;
+    char* entryBuff = NULL;
     int entryBuffCharCnt = 0;
     size_t entryBuffSize = 0;
     int i;
+
+
+    // Initalize number of words (to 0)
+    sh->entWordsCnt = 0;
 
     // Print prompt (and flush output)
     printf("%s", ": ");
     fflush(stdout);
 
-
-printf("beforegetline\n");
     // Get user input line
     entryBuffCharCnt = getline(&entryBuff, &entryBuffSize, stdin);
     //printf("Allocated %zu bytes for the %d chars you entered.\n", entryBuffSize, entryBuffCharCnt);
     //printf("Here is the raw entered line: \"%s\"\n", entryBuff);
-printf("aftergetline: entryBuffCharCnt is %d, size is %d\n", entryBuffCharCnt, entryBuffSize);
+    //printf("aftergetline: entryBuffCharCnt is %d, size is %d, errno: %d\n", entryBuffCharCnt, entryBuffSize, errno);
 
-
-    // Remove trailing newline
-    entryBuff[entryBuffCharCnt-1] = '\0';
-    entryBuffCharCnt--;
-
-    //printf("Here is the cleaned entered line: \"%s\"\n", entryBuff);
-
-    // Parse the entered characters into an array of words
-    char* token = strtok(entryBuff, " \t");
-    sh->entWordsCnt = 0;
-
-    while (token != NULL)
+    // Process if getline successful
+    if (entryBuffCharCnt != -1)
     {
-        strcpy(sh->entWords[sh->entWordsCnt], token);
-        sh->entWordsCnt++;
-        token = strtok(NULL, " \t");
-    }
 
+        // Remove trailing newline
+        entryBuff[entryBuffCharCnt-1] = '\0';
+        entryBuffCharCnt--;
 
-    // Convert any "$$" words to process ID
-    for (i = 0; i < sh->entWordsCnt; i++)
-    {
-        // If any word ends with "$$", replace it with the (stringified) process ID
-        char* dsdsLocation = strstr(sh->entWords[i], "$$");
-        if (dsdsLocation != NULL)
+        //printf("Here is the cleaned entered line: \"%s\"\n", entryBuff);
+
+        // Parse the entered characters into an array of words
+        char* token = strtok(entryBuff, " \t");
+        
+
+        while (token != NULL)
         {
-            sprintf(dsdsLocation, sh->pidString);
+            strcpy(sh->entWords[sh->entWordsCnt], token);
+            sh->entWordsCnt++;
+            token = strtok(NULL, " \t");
         }
-    }
 
-    // Test: print out entered words
-    //printf("User entered %d words, as follows: \n", sh->entWordsCnt);
-    //for (i = 0; i < sh->entWordsCnt; i++)
-    //{
-    //    printf("Word_%d: %s\n", i, sh->entWords[i]);
-    //}
+
+        // Convert any "$$" words to process ID
+        for (i = 0; i < sh->entWordsCnt; i++)
+        {
+            // If any word ends with "$$", replace it with the (stringified) process ID
+            char* dsdsLocation = strstr(sh->entWords[i], "$$");
+            if (dsdsLocation != NULL)
+            {
+                sprintf(dsdsLocation, sh->pidString);
+            }
+        }
+
+        // Test: print out entered words
+        //printf("User entered %d words, as follows: \n", sh->entWordsCnt);
+        //for (i = 0; i < sh->entWordsCnt; i++)
+        //{
+        //    printf("Word_%d: %s\n", i, sh->entWords[i]);
+        //}
+
+    
 
     // Free entry buffer
-printf("beforefree\n");
+    //printf("beforefree\n");
     free(entryBuff);
-printf("afterfree\n");
+    //printf("afterfree\n");
+    
+    } else {
+
+        getlineErrCnt++;
+        if (getlineErrCnt > 5) {exit(1);}
+    }
 
     return;
 }
@@ -329,10 +342,10 @@ void ExecWords(struct Shell* sh)
         // Ampersand present
         // If mode allows, set flag to execute in background
         if (!modeForegroundOnly){
-            printf("Process with exec() in background \n");
+            //printf("Process with exec() in background \n");
             childExecInBackground = 1;
         } else {
-            printf("FG only mode. Process with exec() in foreground \n");
+            //printf("FG only mode. Process with exec() in foreground \n");
             childExecInBackground = 0;
         }
 
@@ -341,7 +354,7 @@ void ExecWords(struct Shell* sh)
         sh->entWordsCnt--;
     }
     else {
-        printf("Process with exec() in foreground \n");
+        //printf("Process with exec() in foreground \n");
         childExecInBackground = 0;
     }
 
@@ -387,7 +400,6 @@ void ChildExecution(struct Shell* sh, int childExecInBackground)
     int inputFD, outputFD, devNullFD, result;
 
 
-
     // If foreground process, expose to SIGINT by setting default action
     // (If background, child process will ignore (via inheritance from parent) SIGINT)
     if (!childExecInBackground) {
@@ -400,6 +412,7 @@ void ChildExecution(struct Shell* sh, int childExecInBackground)
     struct sigaction ignore_action = {0};
     ignore_action.sa_handler = SIG_IGN;
     sigaction(SIGTSTP, &ignore_action, NULL);
+
 
 
     // Detect and set up indirection arguments
@@ -620,18 +633,19 @@ Desc: If the shell is sent SIGTSTP, the execution mode inverts. This function
 ******************************************************************************/
 void catchSIGTSTP(int signo)
 {
+
     if (modeForegroundOnly) {
         modeForegroundOnly = 0;
 
         // Print message
-        char* message = "Exiting foreground-only mode\n";
-        write(STDOUT_FILENO, message, 30);
+        char* message = "Exiting foreground-only mode\n: ";
+        write(STDOUT_FILENO, message, 32);
     } else {
         modeForegroundOnly = 1;
         
         // Print message
-        char* message = "Entering foreground-only mode (& is now ignored)\n";
-        write(STDOUT_FILENO, message, 49);
+        char* message = "Entering foreground-only mode (& is now ignored)\n: ";
+        write(STDOUT_FILENO, message, 51);
     }
 
 }
