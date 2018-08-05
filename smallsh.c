@@ -30,7 +30,7 @@ struct Shell  {
     char pidString[256];
     char entWords[512][256];    // 512 "words", each of max length 256 char
     int entWordsCnt;            // actual number of entered words
-    int modeForegroundOnly;
+    //int modeForegroundOnly;
     char statusMessage[256];
     struct BGProcRecord bgproc[NUM_BG_PROC];   // array for holding background process information 
 };
@@ -50,6 +50,13 @@ void ParentExecution(struct Shell* sh, int childExecInBackground, pid_t childPid
 void SetStatusMessage(char* status, int exitStatus);
 void CheckBGProc(struct Shell* sh);
 void catchSIGCHLD(int signo);
+void catchSIGTSTP(int signo);
+
+
+
+// Global variables
+int modeForegroundOnly = 0;     // added here to allow access in SIGTSTP handler
+
 
 int main()
 {
@@ -57,7 +64,7 @@ int main()
     // Define and initialize shell data
     struct Shell sh;
     sh.entWordsCnt = 0;
-    sh.modeForegroundOnly = 0;
+    //sh.modeForegroundOnly = 0;
 
 
     // Set up the shell
@@ -97,17 +104,24 @@ void shellSetup(struct Shell* sh)
     // Set up Parent signal handlers
     // 1. Catch child terminations
     // 2. Protect Shell from terminating via SIGINT signal
-    struct sigaction SIGCHLD_action = {0}, ignore_action = {0};
+    struct sigaction SIGCHLD_action = {0}, SIGTSTP_action = {0}, ignore_action = {0};
 
     // Set up child termination struct
     SIGCHLD_action.sa_handler = catchSIGCHLD;
     sigfillset(&SIGCHLD_action.sa_mask);
     SIGCHLD_action.sa_flags = 0;
 
+    // Set up mode-switch signal struct
+    SIGTSTP_action.sa_handler = catchSIGTSTP;
+    sigfillset(&SIGTSTP_action.sa_mask);
+    SIGTSTP_action.sa_flags = 0;
+
     // Set up SIGINT ignore struct
     ignore_action.sa_handler = SIG_IGN;
 
+    // Call sigaction's
     sigaction(SIGCHLD, &SIGCHLD_action, NULL);
+    sigaction(SIGTSTP, &SIGTSTP_action, NULL);
     sigaction(SIGINT, &ignore_action, NULL);
 
 
@@ -130,6 +144,11 @@ void shellLoop(struct Shell* sh)
     {
         // Check the Status of all background processes
         CheckBGProc(sh);
+
+
+        // Test: Pause for 10 seconds
+        //printf("Sleeping for 10 seconds\n");
+        //sleep(10);
 
 
         // Get the users entry (and process into array of whitespace-delimited words)
@@ -203,11 +222,14 @@ void GetEntryWords(struct Shell* sh)
     fflush(stdout);
 
 
+printf("beforegetline\n");
     // Get user input line
     entryBuffCharCnt = getline(&entryBuff, &entryBuffSize, stdin);
     //printf("Allocated %zu bytes for the %d chars you entered.\n", entryBuffSize, entryBuffCharCnt);
     //printf("Here is the raw entered line: \"%s\"\n", entryBuff);
-    
+printf("aftergetline: entryBuffCharCnt is %d, size is %d\n", entryBuffCharCnt, entryBuffSize);
+
+
     // Remove trailing newline
     entryBuff[entryBuffCharCnt-1] = '\0';
     entryBuffCharCnt--;
@@ -240,12 +262,14 @@ void GetEntryWords(struct Shell* sh)
     // Test: print out entered words
     //printf("User entered %d words, as follows: \n", sh->entWordsCnt);
     //for (i = 0; i < sh->entWordsCnt; i++)
-    // {
+    //{
     //    printf("Word_%d: %s\n", i, sh->entWords[i]);
-    // }
+    //}
 
     // Free entry buffer
+printf("beforefree\n");
     free(entryBuff);
+printf("afterfree\n");
 
     return;
 }
@@ -304,7 +328,7 @@ void ExecWords(struct Shell* sh)
     {
         // Ampersand present
         // If mode allows, set flag to execute in background
-        if (!sh->modeForegroundOnly){
+        if (!modeForegroundOnly){
             printf("Process with exec() in background \n");
             childExecInBackground = 1;
         } else {
@@ -371,6 +395,12 @@ void ChildExecution(struct Shell* sh, int childExecInBackground)
         default_action.sa_handler = SIG_DFL;
         sigaction(SIGINT, &default_action, NULL);
     }
+
+    // Ignore SIGTSTP in child process
+    struct sigaction ignore_action = {0};
+    ignore_action.sa_handler = SIG_IGN;
+    sigaction(SIGTSTP, &ignore_action, NULL);
+
 
     // Detect and set up indirection arguments
 
@@ -580,4 +610,28 @@ void catchSIGCHLD(int signo)
 {
     char* message = "terminated by signal 2\n";
     write(STDOUT_FILENO, message, 23);
+}
+
+
+/******************************************************************************
+Name: catchSIGTSTP
+Desc: If the shell is sent SIGTSTP, the execution mode inverts. This function
+        catches that signal.
+******************************************************************************/
+void catchSIGTSTP(int signo)
+{
+    if (modeForegroundOnly) {
+        modeForegroundOnly = 0;
+
+        // Print message
+        char* message = "Exiting foreground-only mode\n";
+        write(STDOUT_FILENO, message, 30);
+    } else {
+        modeForegroundOnly = 1;
+        
+        // Print message
+        char* message = "Entering foreground-only mode (& is now ignored)\n";
+        write(STDOUT_FILENO, message, 49);
+    }
+
 }
