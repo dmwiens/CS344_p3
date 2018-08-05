@@ -50,7 +50,6 @@ void ChildExecution(struct Shell* sh, int childExecInBackground);
 void ParentExecution(struct Shell* sh, int childExecInBackground, pid_t childPid);
 void SetStatusMessage(char* status, int exitStatus);
 void CheckBGProc(struct Shell* sh);
-void catchSIGCHLD(int signo);
 void catchSIGTSTP(int signo);
 
 
@@ -104,12 +103,7 @@ void shellSetup(struct Shell* sh)
     // Set up Parent signal handlers
     // 1. Catch child terminations
     // 2. Protect Shell from terminating via SIGINT signal
-    struct sigaction SIGCHLD_action = {0}, SIGTSTP_action = {0}, ignore_action = {0};
-
-    // Set up child termination struct
-    SIGCHLD_action.sa_handler = catchSIGCHLD;
-    sigfillset(&SIGCHLD_action.sa_mask);
-    SIGCHLD_action.sa_flags = SA_RESTART;
+    struct sigaction SIGTSTP_action = {0}, ignore_action = {0};
 
     // Set up mode-switch signal struct
     SIGTSTP_action.sa_handler = catchSIGTSTP;
@@ -120,7 +114,6 @@ void shellSetup(struct Shell* sh)
     ignore_action.sa_handler = SIG_IGN;
 
     // Call sigaction's
-    sigaction(SIGCHLD, &SIGCHLD_action, NULL);
     sigaction(SIGTSTP, &SIGTSTP_action, NULL);
     sigaction(SIGINT, &ignore_action, NULL);
 
@@ -505,8 +498,8 @@ void ChildExecution(struct Shell* sh, int childExecInBackground)
     // Prepare arguments
     for (i = 0; i < sh->entWordsCnt; i++)
     {
-        // Assign the address of the words to the arguments
-        args[i] = &sh->entWords[i];
+        // Assign the address of the words to the arguments (case the address of the words as char*)
+        args[i] = (char*)&sh->entWords[i];
     }
     // Set char pointer after last word to NULL
     args[sh->entWordsCnt] = NULL;
@@ -632,19 +625,6 @@ void CheckBGProc(struct Shell* sh)
             }
         }
     }
-}
-
-
-/******************************************************************************
-Name: catchSIGCHLD
-Desc: If a child process is terminated (by SIGINT), the SIGCHLD signal triggers
-        this to be called in the parent/shell process.
-******************************************************************************/
-void catchSIGCHLD(int signo)
-{
-    ; // do nothing
-    //char* message = "terminated by signal 2\n";
-    //write(STDOUT_FILENO, message, 23);
 }
 
 
