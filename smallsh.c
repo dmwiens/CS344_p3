@@ -522,7 +522,8 @@ void ChildExecution(struct Shell* sh, int childExecInBackground)
     execvp(args[0], args);
 
     // Should never get here, but just in case :)
-    exit(2);
+    printf("%s: no such file or directory\n", args[0]);
+    exit(1);
 }
 
 
