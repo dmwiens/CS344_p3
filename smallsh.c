@@ -469,7 +469,7 @@ void ChildExecution(struct Shell* sh, int childExecInBackground)
 
         } else
         {
-            perror("Input file open failed.\n");
+            printf("cannot open %s for input\n", inputArg);
             exit(1);
         }
     } else {
@@ -491,7 +491,7 @@ void ChildExecution(struct Shell* sh, int childExecInBackground)
 
         } else
         {
-            perror("Output file open failed.\n");
+            printf("cannot open %s for output\n", outputArg);
             exit(1);
         }
     } else {
