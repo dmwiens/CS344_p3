@@ -41,7 +41,7 @@ struct Shell  {
 // Function Prototypes
 void shellSetup(struct Shell*);
 void shellLoop(struct Shell*);
-void shellTeardown();
+void shellTeardown(struct Shell*);
 void GetEntryWords(struct Shell* sh);
 int WordIsBuiltinCommand(char* word);
 void ChangeDirectory(struct Shell* sh);
@@ -75,7 +75,7 @@ int main()
     shellLoop(&sh);
 
     // Teardown the shell
-    shellTeardown();
+    shellTeardown(&sh);
 
 }
 
@@ -166,12 +166,12 @@ void shellLoop(struct Shell* sh)
         {
             if (strcmp(sh->entWords[0], "exit") == 0)
             {
-                printf("exit entered\n");
+                //printf("exit entered\n");
                 exitCommandIssued = 1;
 
             } else if (strcmp(sh->entWords[0], "cd") == 0)
             {
-                printf("cd entered\n");
+                //printf("cd entered\n");
                 ChangeDirectory(sh);
 
             } else if (strcmp(sh->entWords[0], "status") == 0)
@@ -198,8 +198,22 @@ Name: shellTeardown
 Desc: This program deconstructs the shell (frees memory, terminates background
         processes, etc.) 
 ******************************************************************************/
-void shellTeardown()
+void shellTeardown(struct Shell* sh)
 {
+    int i, childExitStatus;
+
+    // kill off any active background processes
+    for (i = 0; i < NUM_BG_PROC; i++) {
+        if (sh->bgproc[i].active){
+            //printf("killing bg process %d...\n", sh->bgproc[i].pid);
+
+            // issue kill signals
+            kill(sh->bgproc[i].pid, SIGKILL);
+
+            // wait for background process to die
+            pid_t actualPid = waitpid(sh->bgproc[i].pid, &childExitStatus, 0);
+        }
+    }
 
     return;
 }
